@@ -1,0 +1,12 @@
+criterion,dimension,SMS_OTP,TOTP,Push,FIDO2_WebAuthn,Biometric_MFA,notes
+Resists password-only compromise,security,meets,meets,meets,meets,meets,Any real second factor blocks login after password leak alone (Meyer population effect)
+Resists SIM-swap,security,fails,meets,meets,meets,meets,Lee et al.: all 5 prepaid carriers had weak SIM-change auth; SMS depends on number control
+Resists AiTM / real-time phishing,security,fails,fails,fails,meets,partial,Typed OTP and push can be relayed; FIDO2 binds to origin. Biometric alone is not phishing-resistant
+Resists MFA fatigue,security,n/a,n/a,fails,meets,meets,Fatigue is a push-class problem; SMS/TOTP are not approve/deny prompts
+NIST phishing-resistant path,security,fails,fails,fails,meets,fails,NIST: biometric is activation factor with a physical authenticator; not phishing-resistant by itself. SMS is restricted PSTN OOB
+Acceptable day-to-day SUS,usability,meets,meets,meets,meets,not measured,Meets = SUS mean of 68 or higher. Reese: the four methods used here (SMS 75.0; TOTP 83.1; Push 81.0; U2F 73.1) all clear 68. Biometric not in Reese
+Fast day-to-day auth,usability,partial,partial,meets,meets,not measured,Meets = median under 12 s; partial = 12 to 20 s. Reese median times (s): U2F 9.1; Push 11.8; TOTP 15.1; SMS 16.6
+Low setup friction,usability,meets,partial,meets,partial,not measured,Reese setup study: TOTP and U2F had setup failures; TOTP lowest mean SEQ among the five
+No smartphone required,deployability,meets,fails,fails,partial,fails,SMS works on basic phones; FIDO2 can be platform authenticator or hardware key (mixed)
+Low marginal cost,deployability,meets,meets,meets,partial,partial,Hardware keys cost money; platform biometrics/passkeys vary by device already owned
+High observed adoption,deployability,meets,meets,meets,fails,partial,Okta Jan 2024: workforce MFA ~66%; FIDO2 WebAuthn ~3%. Device unlock biometrics are common but policy MFA enrollment varies

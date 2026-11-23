@@ -1,0 +1,399 @@
+\documentclass[sigconf]{acmart}
+\AtBeginDocument{%
+\providecommand\BibTeX{{%
+\normalfont B\kern-0.5em{\scshape i\kern-0.25em b}\kern-0.8em\TeX}}}
+\settopmatter{printacmref=false}
+\setcopyright{none}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+\setcopyright{none}
+\makeatletter
+\renewcommand\@formatdoi[1]{\ignorespaces}
+\makeatother
+\graphicspath{{./images/}}
+\raggedbottom
+\begin{document}
+
+\title{Security and Usability of Multi-Factor Authentication: A Comparative Evaluation of Common Mechanisms}
+
+\author{Pierce Bryant}
+\email{pi697276@ucf.edu}
+\affiliation{%
+  \institution{University of Central Florida}
+  \city{Orlando}
+  \state{Florida}
+  \country{USA}
+  \postcode{32816}
+}
+
+\renewcommand{\shortauthors}{Bryant}
+
+\begin{abstract}
+  Multi-factor authentication (MFA) is the first line of defense against
+  credential theft, but second factors are varied in strength. This
+  project questions how well SMS one-time passcodes (OTP), time-based
+  OTP (TOTP), push approval, FIDO2/WebAuthn, and biometric MFA balance
+  security against attack vectors, ease of use, and deployment. I add three
+  new threats (real-time phishing relay, MFA fatigue, and SIM-swap) to the
+  Bonneau usability-deployability-security checklist and rate each
+  mechanism based on peer-reviewed studies and standards. Results indicate that FIDO2/WebAuthn is the only second factor that is
+  resistant to all three types of attacks, and that security keys are the
+  quickest second factor in a controlled study (9.1~s median). All methods
+  tested had SUS means of 73.1 or higher, yet FIDO2/WebAuthn
+  reaches only about 3\% of Okta workforce users. There seems to be a challenge
+  in setup, cost and reach, but not in daily usability.
+\end{abstract}
+
+\maketitle
+
+\noindent\textbf{Code \& Artifacts:} \url{REPO-URL-TBD}
+
+\section{Introduction \& Problem Statement}
+
+Credential abuse is a common way to gain entry into an organization; it
+is the first way in 22\% of breaches Verizon analyzed in
+2025~\cite{verizon:2025:dbir}. The industry best practice is multi-factor
+authentication (MFA), which is both effective and scalable across
+commercial Microsoft Azure Active Directory accounts, according to Meyer et al., who
+estimate that MFA reduces the risk of compromise by 99.22\%, and 98.56\%
+if credentials are leaked~\cite{meyer:2023:mfa}. The same study
+shows that authenticator apps are superior to SMS~\cite{meyer:2023:mfa}.
+The headline figure is an average aggregated across unequal factors, so
+data recording only whether MFA is enabled or not omits which factor
+protects the account.
+
+Each current attack is against a specific factor, not MFA\@. NIST SP
+800-63B-4 retains SMS in the restricted class since a phone number can be
+taken from its owner~\cite{nist:2025:sp80063b4}. In the case of Uber in
+2022, an attacker sent multiple push prompts to a contractor until one was accepted~\cite{uber:2022:security}. The 0ktapus
+campaign relayed typed one-time codes in real time through fake logon
+pages targeting more than 130 organizations and stole 5,441
+codes~\cite{groupib:2022:0ktapus}. This project rates how severe each threat is, not how often it happens.
+
+A counterintuitive observation is that 66\% of Okta workforce users were using MFA in January 2024, whereas only some 3\% were using FIDO2/WebAuthn~\cite{okta:2024:signin}, which resists all three attacks. A
+common explanation is that stronger factors are harder to use, but a U2F
+hardware key was the quickest second factor in a controlled
+study~\cite{reese:2019:2fa}. This project asks which of SMS one-time
+passcode (OTP), time-based OTP (TOTP), push notification, FIDO2/WebAuthn and biometric MFA best balances security against current
+attacks, everyday usability, and deployability. It aims to add the
+three new threats to an existing checklist, rate the five mechanisms
+from published evidence, and make tiered recommendations.
+
+Security alone cannot settle which factor should be preferred. A method might offer strong protection but still be difficult to introduce across a large group of users. Another might be familiar and widely available while leaving a specific attack open. Both outcomes matter when deciding what to require and what to offer as a fallback. This is why usability and deployability are treated as separate questions. Being quick to use after enrollment does not mean a method is easy to set up, affordable to support, or available to everyone. Comparing all three dimensions provides more useful guidance than choosing a winner based on security alone.
+
+If the strongest method is not the least usable in
+the real world, then it seems that the only other possibilities for why it is not widely used are
+friction, cost or awareness, not some security-usability tradeoff. That reframe has a practical
+implication which an inherent ceiling on usability does not --- namely, friction in setup and
+recovery is an engineering and policy problem that can be solved.
+
+Another issue with the binary framing is that these mechanisms do not simply fail at a higher level. They operate differently. SMS is defeated by controlling a phone number, away
+from the user's phone altogether; push is defeated by tiring a human out of the process of giving an
+approval; a typed code is defeated by giving it through a believable proxy. These failures also require different defenses, which is why a security model that records only whether a second factor is present leaves out information that matters in practice. It might show that two accounts have MFA enabled, for example, while saying nothing about whether an attacker could redirect a code, relay it through a fake page, or convince a user to approve a request. The comparison therefore needs to ask not just whether an additional step exists, but what that step actually stops when a specific threat is involved.
+
+The contribution has three parts:
+\begin{enumerate}
+  \item a reproducible comparison matrix which rates every security mechanism against security,
+    usability and deployability criteria with modern bypasses clearly marked;
+  \item a set of tiered
+    recommendations that distinguish between high-assurance and general consumer configurations;
+  \item a
+    public scoring package for the reader to audit each rating.
+\end{enumerate}
+The rest of the paper summarizes
+previous work, describes the scoring process and metrics, summarizes the evaluation, and discusses
+the limitations that led to these conclusions.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{evaluation_pipeline.png}
+  \caption{Evaluation pipeline. Three threats absent from the 2012
+    framework enter before scoring, and each dimension draws on its own
+    evidence, so a weakness in one source (such as Reese's single
+    site) affects only its own rows.}
+  \Description{A five-stage left-to-right pipeline. 1 Scope lists the
+    five mechanisms: SMS OTP, TOTP, push approval, FIDO2/WebAuthn and
+    biometric MFA. 2 Framework is the Bonneau checklist (usability,
+    deployability, security) plus three modern threats: AiTM relay, MFA
+    fatigue and SIM-swap. 3 Evidence maps security, usability and
+    deployability to their sources. 4 Score rates 11 criteria for 5
+    mechanisms as meets, partial, fails, n/a or not measured. 5 Output is
+    the comparison matrix and tiered recommendations.}
+  \label{fig:pipeline}
+\end{figure*}
+
+\begin{table*}[t]
+  \caption{Comparison matrix. n/a = not applicable; NM = not
+    measured.}
+  \label{tab:matrix}
+  \begin{tabular}{lccccc}
+    \toprule
+    \textbf{Criterion} & \textbf{SMS} & \textbf{TOTP} & \textbf{Push} & \textbf{FIDO2} & \textbf{Bio.} \\
+    \midrule
+    \multicolumn{6}{l}{\textbf{SECURITY}} \\
+    Resists password-only compromise & Meets & Meets & Meets & Meets & Meets \\
+    Resists SIM-swap                 & Fails & Meets & Meets & Meets & Meets \\
+    Resists AiTM relay phishing      & Fails & Fails & Fails & Meets & Partial \\
+    Resists MFA fatigue              & n/a   & n/a   & Fails & Meets & Meets \\
+    NIST phishing-resistant path     & Fails & Fails & Fails & Meets & Fails \\
+    \midrule
+    \multicolumn{6}{l}{\textbf{USABILITY}} \\
+    Acceptable day-to-day SUS        & Meets & Meets & Meets & Meets & NM \\
+    \quad SUS mean                       & 75.0  & 83.1  & 81.0  & 73.1\textsuperscript{\textdagger} & NM \\
+    Fast day-to-day authentication   & Partial & Partial & Meets & Meets & NM \\
+    \quad Median time (s)                & 16.6  & 15.1  & 11.8  & 9.1\textsuperscript{\textdagger} & NM \\
+    Low setup friction               & Meets & Partial & Meets & Partial & NM \\
+    \midrule
+    \multicolumn{6}{l}{\textbf{DEPLOYABILITY}} \\
+    No smartphone required           & Meets & Fails & Fails & Partial & Fails \\
+    Low marginal cost\textsuperscript{\textdaggerdbl}      & Meets & Meets & Meets & Partial & Partial \\
+    High observed adoption\textsuperscript{\textdaggerdbl} & Meets & Meets & Meets & Fails & Partial \\
+    \bottomrule
+  \end{tabular}
+
+  \smallskip
+  \begin{minipage}{0.8\textwidth}
+    \footnotesize
+    \textsuperscript{\textdagger}~U2F security key data from Reese et
+    al.~\cite{reese:2019:2fa}, used as a proxy for FIDO2/WebAuthn.
+    \textsuperscript{\textdaggerdbl}~Analyst judgment;
+    Okta~\cite{okta:2024:signin} reports 66\% MFA and about 3\% FIDO2/WebAuthn adoption.
+  \end{minipage}
+\end{table*}
+
+\section{Related Work}
+
+\subsection{Comparative Frameworks}
+
+Reading all of the research reveals that there are five clusters of research and that no single research cluster on its own covers the gap. The first cluster is on comparative
+frameworks. The reference method, with its list of twenty-five usability, deployability, and
+security benefits, was defined by Bonneau et al.~\cite{bonneau:2012:quest}, and their conclusion
+that no scheme possesses the complete set of benefits that legacy passwords have should never be
+overlooked when comparing any of them. While the breadth of the framework is its strength, the
+framework is now quite old, and this is not ideal for the current context. Written in 2012, before
+the advent of the industrialized SIM-swap and push-approval fatigue, and the real-time phishing
+relay, it would score mechanisms against a threat model that no longer exists. This
+paper does not attempt to replace the framework; it is an attempt to extend it for this reason.
+
+\subsection{Usability and Exposure Studies}
+
+The second cluster is an objective measure of usability. Reese et al.~\cite{reese:2019:2fa} used five different methods on a simulated banking site in a two-week study of 72 people and found that all of the methods fell within an acceptable usability band and that the median authentication time was quickest for the hardware key. The bulk of their work is empirical and forms the foundation of any usability claim in this area, but it has two drawbacks that affect how far it can be pushed. It's a single site, single controlled study, so the scores indicate relative standing for this study and not population behavior, and it doesn't include biometric MFA, which leaves a real void that no later source in this set is able to fill. The third cluster is on attacks on weak factors. Lee et al.~\cite{lee:2020:simswap} analyzed five prepaid carriers and discovered that all of them used SIM-change authentication challenges an attacker could subvert, then traced the downstream effect across over 140 websites, identifying 17 that could be exploited via a SIM-swap alone. That is the abstract weakness of the SMS delivery and makes it checkable as a consequence, not as a rate, and the study of specific carriers and sites is a snapshot, not a running rate and should be interpreted as just evidence of exposure.
+
+The fourth cluster is about effectiveness at scale. Meyer et al.~\cite{meyer:2023:mfa} are providing the grand-scale argument that any MFA is a large improvement over passwords alone, and suggest authenticator apps are better than SMS. They contribute something other than a lab scenario. They have a wide variety of real-world accounts, but they don't rank the various mechanisms against the latest real-world bypasses, so they state that MFA works and don't say which MFA is resistant to a real-world relay. When compared, the two studies complement rather than compete; Meyer provides the scale, Reese provides the depth; neither provides the answer alone. Meyer shows that
+MFA works, Reese shows what it is like to use, and Lee shows where it
+breaks.
+
+Although these studies help explain MFA, they do not establish the same kind of finding, and that becomes important once their results are brought together in one comparison. A controlled sign-in study tells us something about the experience of using a method, including how long a task takes and how participants respond to it, but it cannot show whether that same method will resist every current attack. A carrier audit answers almost the opposite question, since it can reveal what happens when control of a phone number is weak without measuring whether people find a particular authenticator easy to use. Adoption figures introduce another difference: they show what is deployed in the population being observed, which is not necessarily what users would choose if every option were available, and it is certainly not proof that the most common option is the most secure. These boundaries are worth keeping in view because the point of combining the studies is to explain what each contributes, not to make one source answer questions it was never designed to test.
+
+\subsection{Standards and Adoption}
+
+Standards and industry measurement make up the last cluster. NIST SP
+800-63B-4~\cite{nist:2025:sp80063b4} establishes the level of assurance, specifically phishing
+resistance, as the protocol's ability to not allow an impostor verifier to obtain the authentication
+secret without relying on the user's vigilance and limits SMS accordingly. Okta's adoption data~\cite{okta:2024:signin}, however, answers a different question because it describes what is deployed among workforce accounts using an enterprise identity platform, rather than what is being used by consumers across personal accounts. For this reason, the percentages reported by Okta cannot simply be carried over to the consumer population or treated as a general measure of what people prefer. Read alongside NIST, the data still identifies a meaningful difference between the level of protection recommended by a standard and what is deployed in the measured workforce environment; it just does not establish how large that difference would be outside the enterprise setting.
+
+These clusters come to an understanding of the importance of MFA, but they differ
+implicitly in how to value a mechanism. Bonneau provides breadth and an obsolete threat model; Reese
+provides rigorous usability, no biometrics, and one site; Lee provides exposure but not rates; Meyer provides the scale; and
+the standards set a bar that the adoption data tells us the market isn't meeting. Each source is
+good on one dimension and bad on the others, and the gaps correspond in an interesting pattern: no
+single study measures security, usability and deployability for the same set of mechanisms on the
+same level of current threat model. This is not a missing data point but a missing synthesis: the synthesis of these five mechanisms, in all three dimensions, with the modern bypasses, and scored
+explicitly as a single decision-facing comparison, which the next section constructs.
+
+\section{Methodology}
+
+\subsection{Study Design and Scope}
+
+This study is not a new user study, and this is by design. The challenge a practitioner is likely to
+encounter is not whether a novel prototype can be fabricated, but which of the available,
+ready-to-go mechanisms should be selected, which can be best answered by assessing mechanisms based
+on a clear set of criteria using the best published evidence available. The instrument selected was
+Bonneau et al.'s~\cite{bonneau:2012:quest} usability-deployability-security checklist, as it is the
+most widely cited comparative instrument and has a three-dimensional format, which corresponds to
+the three-part question.
+
+This framework is extended and not adopted outright, as it does not include
+the bypasses that are now prevalent. Three new security
+requirements are introduced that are in current practice, namely: resistance to real-time phishing
+relay (also called adversary-in-the-middle (AiTM)); resistance to MFA fatigue; and resistance to
+large-scale SIM-swap. The three criteria are important to this extension because they separate mechanisms that would otherwise sit under the same older label of two-factor authentication, even when their weaknesses are not alike. An SMS code and an authenticator-generated code, for instance, both ask the user to enter something after a password, but only one depends on continued control of a phone number; neither of those typed codes, however, provides the same protection against a real-time relay as an origin-bound credential. Treating all of these as equivalent second factors would hide that distinction before the evaluation even begins, so the added criteria are meant to make those different failure paths visible in the scoring rather than assume that the label itself tells us enough.
+
+There are five mechanisms in scope: SMS OTP, TOTP generated via an authenticator app, push notification
+approval, FIDO2/WebAuthn (including hardware security keys (e.g., YubiKeys)), and biometric MFA.
+
+Biometric MFA is treated in accordance with NIST guidance, and in the context of NIST SP
+800-63B-4~\cite{nist:2025:sp80063b4}, a biometric characteristic is not an authenticator in its own
+right and needs a non-biometric fallback. It affects the scoring of biometric MFA on security, since
+a biometric that unlocks a phishing-resistant device has other properties than a biometric that
+unlocks a phishable device, and is the reason for the conditional rating of several biometric cells
+rather than an unconditional one.
+
+Reese et al.~\cite{reese:2019:2fa} tested U2F keys, which came before FIDO2/WebAuthn, so their results are flagged accordingly.
+
+\subsection{Evaluation Pipeline}
+
+Figure~\ref{fig:pipeline} shows the evaluation pipeline. The five mechanisms are fixed in scope, the
+extended checklist is established in the framework stage, the three parallel streams of
+peer-reviewed studies and standards are established in the evidence stage, with vendor marketing
+considered as secondary evidence, a rating is given per criterion in the scoring stage, and the
+matrix and the tiered recommendations are generated in the output stage. The three dimensions are
+judged against specific criteria, and the specific criteria are set here before the results are
+displayed and are not subject to change so as not to be read as post hoc.
+
+How each mechanism is implemented matters in scoring it, since a protection cannot be assumed to be in place simply because a product supports it, and the name of the method does not always tell us what the user is actually being asked to do. This is especially relevant for biometrics. Asking for a fingerprint does not, by itself, establish whether the credential being unlocked is bound to the legitimate website. That underlying design can change which threat the method resists, so a conditional rating is more defensible than giving every implementation an unconditional pass or failure. The same caution is necessary when bringing usability evidence into the pipeline, because Reese's U2F results come from an earlier security-key method and are used here as a proxy for FIDO2/WebAuthn rather than being presented as a direct test of the newer standard. Keeping those distinctions visible makes the results less tidy in some places, but it also makes the comparison more faithful to what the sources establish.
+
+\subsection{Metrics and Rating Scale}
+
+Table~\ref{tab:matrix} covers eleven criteria.
+\begin{itemize}
+  \item \textbf{Security.} Security involves NIST Authenticator Assurance Level (AAL)
+    properties~\cite{nist:2025:sp80063b4} and documented attacks: a mechanism
+    fails a criterion if NIST restricts it, or a published attack is
+    practical.
+  \item \textbf{Usability.} Usability data comes from Reese et al.~\cite{reese:2019:2fa}: a SUS mean of 68 or higher meets, which is the usual benchmark for average usability; median second-factor time meets below 12~s and is partial from 12 to 20~s; setup friction is rated from setup failures and Single Ease Question (SEQ) scores.
+  \item \textbf{Deployability.} The deployability dimension is based on smartphone dependence, the marginal cost, and the observed adoption~\cite{okta:2024:signin}.
+\end{itemize}
+
+There are five possible ratings for each criterion. A rating of meets implies that the
+property holds under the cited definition; partial implies that it holds only when constraints are
+present or the evidence is mixed; fails implies that there is a documented systematic weakness in
+the sources; not applicable implies that the criterion does not bear on the mechanism, as with
+fatigue for a mechanism that involves no approve and deny prompt; and not measured implies no
+head-to-head evidence exists in the sources used, as with biometric usability in Reese's example.
+Because the sources selected for this review do not report a SUS score for biometric MFA, the matrix leaves that value unmeasured rather than assigning a number based on how convenient biometric authentication might seem. Doing otherwise would turn an assumption about usability into a result that the research used here has not provided. All
+the cell-level justifications are documented in a publicly accessible score sheet and can be
+challenged, rather than simply accepted.
+
+Not applicable and not measured describe different limits in the comparison, and keeping them separate is necessary if the matrix is going to say what the evidence actually supports. A method that does not involve an approve-or-deny notification does not face push fatigue in that particular form, so recording a failure there would suggest a weakness that the criterion is not meant to test. The missing biometric SUS figure is different, because usability is still relevant to biometric MFA, but the studies selected for this review did not provide a comparable score. Calling that a pass would fill the gap with an assumption, while calling it a failure would punish the method for a measurement that was not made. For much the same reason, the ratings are not added into one overall score: deciding that an improvement in ease of use could offset a failure against phishing would require assigning weights to security and usability, and the available research does not provide a defensible basis for those weights. The separate rows leave that tradeoff visible for the reader rather than making it disappear into a single number.
+
+\paragraph{Threats to validity.}
+Two judgment points need to be flagged that threaten the
+validity, and they are referred to again in the discussion: the ratings are based on data collected
+in studies that used different populations and instruments; and the ratings between partial and
+fails are based on the judgment of the analyst, most clearly in the case of TOTP setup friction,
+which the evidence suggests is between a clean pass and a clear failure.
+
+\section{Evaluation \& Results}
+
+\subsection{Security}
+
+Table~\ref{tab:matrix} shows that MFA has a security hierarchy behind the
+shared label. Each of the five mechanisms is resistant to password-only
+attacks~\cite{meyer:2023:mfa}, but each weaker factor fails on a different
+axis. SIM-swap works against SMS because the code follows the
+number~\cite{lee:2020:simswap}. TOTP doesn't go through the carrier, but
+a typed code may be relayed. Push fails due to
+fatigue~\cite{uber:2022:security} and relay. FIDO2/WebAuthn has all
+three: because an origin-bound credential cannot be used to sign an
+imitation domain~\cite{w3c:2021:webauthn2}, NIST considers this property
+to be phishing-resistant~\cite{nist:2025:sp80063b4}. No
+combination of weaker factors provides origin binding, so FIDO2/WebAuthn works differently, not just better.
+
+The difference between these mechanisms is not just how many steps a user completes, but what an attacker would have to control, or persuade someone to do, before those steps stop protecting the account. An SMS code follows the phone number, which leaves room for an attacker who gains control of that number to receive the code somewhere other than the user's device. TOTP takes the mobile carrier out of that process, but the code can still be entered into a convincing fake sign-in page and passed along while it remains valid; push approval creates another opening, where the attacker may keep sending requests or use pressure to convince someone to approve one. None of these weaknesses is interchangeable, and replacing one mechanism with another does not necessarily solve every problem that appeared in the first. Moving from SMS to TOTP removes the phone-number exposure but does not close the real-time relay path, whereas an origin-bound credential addresses that phishing problem through the protocol rather than by asking the user to recognize that something is wrong. That is why counting the number of authentication steps alone does not capture the security difference shown by the matrix.
+
+\begin{table}[t]
+  \caption{Day-to-day usability of five second factors, from Reese et al.~\cite{reese:2019:2fa}. SUS is the System Usability Scale; higher is better. Biometric MFA was not tested and is recorded as not measured.}
+  \label{tab:usability}
+  \resizebox{\columnwidth}{!}{%
+  \begin{tabular}{lcccc}
+    \toprule
+    Method & SUS mean & SUS median & Median time (s) & Band \\
+    \midrule
+    TOTP & 83.1 & 88.8 & 15.1 & Acceptable \\
+    Push & 81.0 & 81.3 & 11.8 & Acceptable \\
+    SMS OTP & 75.0 & 75.0 & 16.6 & Acceptable \\
+    U2F (hardware key) & 73.1 & 75.0 & 9.1 & Acceptable \\
+    Biometric MFA & not measured & not measured & not measured & not measured \\
+    \bottomrule
+  \end{tabular}}
+\end{table}
+
+\subsection{Usability}
+
+Usability evidence suggests that stronger does not mean harder. All four recorded methods had SUS means from 73.1 for U2F to 83.1
+for TOTP~\cite{reese:2019:2fa}. The Reese et al.~\cite{reese:2019:2fa} measurements are collected in Table~\ref{tab:usability}. There was a significant difference
+between methods (Kruskal-Wallis $p \approx 0.026$), but no method was
+unsatisfactory. SMS took the longest at a median of 16.6~s, while U2F was the fastest at 9.1~s. U2F's lowest SUS score along
+with the higher number of failures in setting up TOTP and U2F
+authenticators implies that perceived burden is more related to
+enrollment than daily usage (but not proven). The lack of biometric MFA in this evidence is not ignored and is discussed.
+
+The timing results also need to be considered alongside the setup findings, because a method that works quickly after it has been configured can still be frustrating at the point when someone first has to register it, and that difference tends to disappear when usability is reduced to one number. SUS captures the participants' impressions of using a method, while median time reflects how long a particular sign-in task took under the conditions of the study; they tell us related things, but not exactly the same thing. A fast authentication time also does not answer what happens when a phone is replaced, a security key is lost, or a user needs to regain access after enrollment, since those recovery tasks were not established by the daily timing result. This matters to the overall comparison because organizations have to support the complete experience, not just the few seconds spent approving a sign-in once everything is working. The evidence therefore supports the narrower finding that U2F was fast during the measured task, while the broader claim that enrollment and recovery are equally easy would need evidence that this study does not provide.
+
+\subsection{Deployability}
+
+The deployability evidence accounts for the adoption paradox without relying on the concept of
+usability. SMS is still widely used despite its security shortcomings and is not as
+straightforward to remove as the security argument would imply, meeting the reach criteria because
+it can be sent to any phone and requires no application to be installed, and the relying party has
+only minimal costs involved. Both TOTP and push satisfy the low cost and adoption criteria, but
+don't satisfy the no-smartphone criterion as both require an application on a capable device, which
+in turn excludes users with basic handsets or those who don't want to install an authenticator. The
+phishing-resistant options fall far behind: Okta's data~\cite{okta:2024:signin} places FIDO2/WebAuthn at roughly 3 percent of workforce users against 66 percent for MFA overall, the purchase
+cost is something that a relying party or user must bear, and the reach of platform authenticators
+depends on the installed base the relying party does not own.
+
+This pattern, in conjunction with the
+usability results, helps to identify the actual roadblock. FIDO2/WebAuthn is excellent at security
+and competitive in day-to-day usability, but not so common in deployments, and the cost, dependency
+on devices, and hassle of set-up and recovery determine adoption more than everyday use.
+
+These adoption figures also need care when they are used to make recommendations, especially because the conditions that shape deployment at work are not necessarily the same conditions a person faces when securing a personal account. Employees may receive equipment, setup instructions, and support from an IT department, and an organization can require a method even when some users would not have chosen it on their own. A consumer may not have that support, although the situation can also work in the other direction, since someone who already owns a compatible device may be able to use a phishing-resistant method without buying a separate security key. Okta's figures do not tell us how those differences balance out, which means the measured workforce gap between recommended protection and observed deployment should not be used as though it were a consumer adoption rate. The deployability comparison is still useful because it identifies barriers that a service would need to consider, but the exact size of those barriers will depend on who the users are, what equipment they have, and how enrollment and recovery are supported.
+
+\subsection{Trade-offs}
+
+FIDO2/WebAuthn wins on
+security, is competitive in day-to-day usability, and loses on
+deployability compared to SMS\@. But Bonneau's result that no scheme is
+dominant~\cite{bonneau:2012:quest} is still valid. The evidence shifts the
+focus of phishing-resistant MFA from daily usability to onboarding, cost,
+and reach. This has two consequences: MFA should be recorded by
+authenticator class, not as enabled or disabled, and FIDO2/WebAuthn should be recommended for high-assurance scenarios and any MFA for general consumers, with SMS as the fallback for accessibility.
+
+The matrix leads to a 3-part response to the research question. On security, FIDO2/WebAuthn is the
+obvious winner, and the only mechanism that is resistant to all three modern methods
+that circumvent MFA; TOTP is a step up from SMS but is still phishable; and any MFA is better
+than just a password. The evidence doesn't support the ability to rank mechanisms by utility when it
+comes to usability, with the most resistant-to-phishing key being the fastest daily performer, and
+the actual cost of usability being in setup and not in day-to-day use. SMS ranks highest in deployability, while phishing-resistant authentication methods have the lowest deployment rates.
+
+\section{Discussion \& Challenges}
+
+\subsection{Limitations}
+
+Conclusions are limited to the evidence that is available, so a specific statement is more important than one used as a disclaimer. Usability results are based on a single controlled study with 72 subjects on one simulated site, so the SUS results are a relative standing in the study conditions, and they should not be used as a statement of how a national population would behave; any deployment decision should be made using the SUS results as a direction, not a certainty.
+
+The analysis adds no new measurements and thus inherits the sampling of the populations and instruments used in the sources and is not able to correct for the sampling of the sources. The most notable missing row is biometric usability; it is not measured by any of the sources in the set, so the biometric column of the matrix is truly incomplete on the usability axis; any reader who values usability a lot should consider that biometric MFA is still unproven, and not presume equality.
+
+As already mentioned, but emphasized as a limitation on interpretation, the incident evidence indicates that both Uber~\cite{uber:2022:security} and 0ktapus~\cite{groupib:2022:0ktapus} show that fatigue and real-time phishing work, not how often they do; severity and frequency need to be separated. Lastly, the adoption numbers are based on an enterprise identity platform, which makes it more accurate to show workforce behavior than consumer behavior.
+
+\subsection{Methodological Challenges}
+
+There are two methodological, not evidential, challenges. The first is that when scoring, results are compared across studies with different populations, sites, and instruments; as such, results are never set up for direct comparison. There is no scale common to a SUS from a banking-site study and an attack outcome from a carrier audit, and the merging of the two into a single row requires the reader to accept a qualitative synthesis rather than a measured one. The remedy is to cite each cell to a source and to publish reasons for the judgment so that it is not hidden and can be challenged, but the limitation is genuine and cannot be eliminated completely by citing the source.
+
+The second challenge is that the boundary between partial and fails is dependent on the analyst's judgment, most obviously in the case of TOTP setup friction where the Reese setup findings have it in the middle of the two extremes. That cell being recorded as partial, rather than fails, is a defensible interpretation of mixed evidence: the users did do some setup, but made more mistakes than with SMS/push, but a reader who gives more weight to the setup mistakes could move that cell to fails. 
+
+The judgment-based cells provide one way to examine how sensitive the conclusions are to the scoring choices, because a rating near the boundary between partial and fails may reasonably be interpreted differently by another reader. If TOTP setup friction were moved from partial to fails, for example, that would change how its usability is represented in the matrix, but it would not change the fact that a typed code can still be relayed through a phishing page. A biometric method raises a related problem, since the security rating can depend on what the biometric unlocks, yet changing that assumption does not suddenly provide the missing SUS result. This suggests that some of the smaller comparisons are more dependent on analyst judgment than the central distinction between phishable codes and origin-bound credentials, though the judgment still needs to be made visible rather than treated as a measured fact. A stronger follow-up study would put the same mechanisms in comparable conditions, report the exact configurations being tested, and follow users through enrollment, ordinary sign-in, and recovery, so that the parts of usability that are currently inferred from separate sources could be examined together. Until that evidence exists, the more careful conclusion is not that every row is equally certain, but that the limitations of the uncertain rows should be clear enough for someone else to question them.
+
+\subsection{Implications}
+
+This has implications beyond the matrix. The most important one is that recording MFA as a binary switch, on or off, discards the most important security information because the distance between SMS and FIDO2/WebAuthn on modern bypasses is greater than for no MFA and SMS on some measures. Organizations and standards that note MFA enabled/not enabled should note the authenticator class, as that is the thing which the evidence shows is the key.
+
+The second implication follows from the combination of the two usability/deployability results. If there is an advantage in using the phishing-resistant option --- it is competitive in use, but hard to deploy --- then investment to increase phishing resistance should focus on setup, enrollment and recovery, where the friction and cost really lie, and not on how easy it is to use day-to-day. Improving the onboarding of FIDO2/WebAuthn is probably going to push adoption further than anything that will make it easier for people to use the product on a daily basis, since everyday use is not the constraint.
+
+\section{Concluding Remarks}
+
+There is no single best second factor; however, the worthiness of asking the question across three dimensions is that it makes the reason explicit. Any MFA is an improvement over passwords alone, and FIDO2/WebAuthn dominates when it comes to security, and is the only method in this suite that can withstand real-time phishing, fatigue and SIM-swap attacks. The strength of a mechanism does not necessarily correlate with how burdensome it is for the user to use, and on deployability, SMS still dominates reach, with the strongest mechanisms remaining rare. What was found is that this scarcity is not due to daily usability, as the evidence suggests the most viable option is competitive at the daily level, but rather setup friction, cost, and device dependency are the drivers of this scarcity, and it is something that can be addressed.
+
+General consumer settings should provide phishing-resistant options without overpromising, and provide TOTP as an alternative to FIDO2/WebAuthn, and high-assurance settings should standardize on FIDO2/WebAuthn and avoid relying on SMS as their primary authentication method. The number one change that a measurement regime could make is to stop counting MFA as a binary, and instead start counting by authenticator class --- this is the one variable that the analysis shows to be decisive.
+
+The obvious next step for research is a controlled usability study with equal treatment of the five methods, for the one row that this evaluation cannot fill, that being the one that the current literature has not tested. All claims that biometrics solve the security vs usability tension are based on assumption, not measurement.
+
+The bigger picture is that it is not a matter of `best' factor, but of `best' factor in `best' context: a well-answered question explains why and how security, usability, and deployability are needed simultaneously, and why they are not mutually exclusive.
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references.bib}
+
+\end{document}
+\endinput
